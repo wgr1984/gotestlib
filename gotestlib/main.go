@@ -23,6 +23,10 @@ type PhotoWrapper struct {
 	items []Photo
 }
 
+type PhotosCallback interface {
+	SendResult(photos *PhotoWrapper, err error)
+}
+
 // var (
 // 	items []MyType
 // )
@@ -42,21 +46,24 @@ func NewApi() *Api {
 	return &Api{client: http.DefaultClient}
 }
 
-func (api *Api) GetPhotos() (*PhotoWrapper, error) {
+func (api *Api) GetPhotos(callback PhotosCallback) {
+	go func() {
+		resp, err := api.client.Get(sampleUrl)
+		if err != nil {
+			callback.SendResult(nil, err)
+			return
+		}
 
-	resp, err := api.client.Get(sampleUrl)
-	if err != nil {
-		return nil, err
-	}
+		dec := json.NewDecoder(resp.Body)
+		defer resp.Body.Close()
 
-	dec := json.NewDecoder(resp.Body)
-	defer resp.Body.Close()
+		var photos []Photo
 
-	var photos []Photo
+		if err := dec.Decode(&photos); err != nil {
+			callback.SendResult(nil, err)
+			return
+		}
 
-	if err := dec.Decode(&photos); err != nil {
-		return nil, err
-	}
-
-	return &PhotoWrapper{photos}, nil
+		callback.SendResult(&PhotoWrapper{photos}, nil)
+	}()
 }
